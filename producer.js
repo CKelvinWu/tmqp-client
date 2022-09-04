@@ -7,11 +7,11 @@ const tmqp = require('./tmqp');
   await connection.produce(queue, '3');
   await connection.produce(queue, '4');
 
-  // connection.produce('test1', 'test1');
-  // connection.produce('test1', 'test2');
-  // connection.produce('test1', 'test3');
-  // connection.produce('test1', 'test4');
-  connection.end();
+  await connection.produce('test1', 'test1');
+  await connection.produce('test1', 'test2');
+  await connection.produce('test1', 'test3');
+  await connection.produce('test1', 'test4');
+  await connection.end();
 })();
 
 module.exports = tmqp;

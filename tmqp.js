@@ -21,7 +21,7 @@ class Connection {
         maxLength: 5,
         message,
       };
-      this.client.write(`${JSON.stringify(produce)}\r\n\r\n`);
+      this.send(produce);
       console.log(`produce: ${JSON.stringify(produce)}`);
       myEmitter.on(produce.id, (data) => {
         resolve(data.message);
@@ -36,12 +36,16 @@ class Connection {
         method: 'consume',
         queue,
       };
-      this.client.write(`${JSON.stringify(consume)}\r\n\r\n`);
+      this.send(consume);
       console.log(`${JSON.stringify(consume)}`);
       myEmitter.on(consume.id, (data) => {
         resolve(data.message);
       });
     });
+  }
+
+  send(messages) {
+    this.client.write(`${JSON.stringify(messages)}\r\n\r\n`);
   }
 
   end() {
