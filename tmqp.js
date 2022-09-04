@@ -12,16 +12,21 @@ class Connection {
     this.consumers = [];
   }
 
-  produce(queue, message) {
-    const produce = {
-      id: randomId(),
-      method: 'produce',
-      queue,
-      maxLength: 5,
-      message,
-    };
-    this.client.write(`${JSON.stringify(produce)}\r\n\r\n`);
-    console.log(`produce: ${JSON.stringify(produce)}`);
+  async produce(queue, message) {
+    return new Promise((resolve, reject) => {
+      const produce = {
+        id: randomId(),
+        method: 'produce',
+        queue,
+        maxLength: 5,
+        message,
+      };
+      this.client.write(`${JSON.stringify(produce)}\r\n\r\n`);
+      console.log(`produce: ${JSON.stringify(produce)}`);
+      myEmitter.on(produce.id, (data) => {
+        resolve(data.message);
+      });
+    });
   }
 
   async consume(queue) {
@@ -78,8 +83,9 @@ const tmqp = {
 
         if (object.message === 'connected') {
           resolve(new Connection(client));
-        }
-        if (object.method === 'consume') {
+        } else if (object.method === 'consume') {
+          myEmitter.emit(object.id, object);
+        } else if (object.method === 'produce') {
           myEmitter.emit(object.id, object);
         }
       });
