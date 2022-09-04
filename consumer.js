@@ -1,12 +1,16 @@
 const tmqp = require('./tmqp');
 
-tmqp.connect({ host: 'localhost', port: 3000 }, (error, connection) => {
-  if (error) console.log(error);
-  // const queue = 'test';
-
-  connection.consume('test', (message) => {
-    console.log('test: ', message);
-  });
-});
+(async () => {
+  const connection = await tmqp.connect({ host: 'localhost', port: 3000 });
+  const queue = 'test';
+  (async () => {
+    const message = await connection.consume('test');
+    console.log(message);
+  })();
+  (async () => {
+    const message = await connection.consume('test1');
+    console.log(message);
+  })();
+})();
 
 module.exports = tmqp;
