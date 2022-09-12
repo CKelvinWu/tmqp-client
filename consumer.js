@@ -1,16 +1,11 @@
-const tmqp = require('./tmqp');
+const Tmqp = require('./tmqp');
 
 (async () => {
-  const connection = await tmqp.connect({ host: 'localhost', port: 3000 });
-  const queue = 'test';
+  // const connection = await tmqp.connect({ host: 'localhost', port: 3000 });
+  const tmqp = new Tmqp({ host: 'localhost', port: 3006 });
+  const connection = await tmqp.connectTurtlekeeper();
   (async () => {
-    const message = await connection.consume('test');
-    console.log(message);
-  })();
-  (async () => {
-    const message = await connection.consume('test1');
-    console.log(message);
+    const messages = await connection.consume('competition', 3);
+    console.log(messages);
   })();
 })();
-
-module.exports = tmqp;
