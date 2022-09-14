@@ -77,7 +77,7 @@ class Connection {
   }
 }
 
-class tmqp {
+class Tmqp {
   constructor(config) {
     this.config = config;
   }
@@ -191,4 +191,4 @@ class tmqp {
   }
 }
 
-module.exports = tmqp;
+module.exports = Tmqp;
