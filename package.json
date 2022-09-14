@@ -1,5 +1,5 @@
 {
-  "name": "tmqp",
+  "name": "tmqp-client",
   "version": "1.0.0",
   "description": "",
   "main": "tmqp.js",
@@ -12,7 +12,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/kai5363/tmqp/issues"
   },
