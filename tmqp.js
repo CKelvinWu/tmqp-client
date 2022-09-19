@@ -25,61 +25,15 @@ async function getMasterIp(turtlekeeperConfig) {
   });
 }
 
-class Connection {
-  constructor(client) {
-    this.client = client;
-    this.consumers = [];
-  }
-
-  async produce(queue, messages, option) {
-    return new Promise((resolve, reject) => {
-      const produceObj = {
-        id: randomId(),
-        method: 'produce',
-        maxLength: option?.maxLength,
-        queue,
-        messages: typeof messages === 'string' ? [messages] : [...messages],
-      };
-      this.send(produceObj);
-      console.log(`${JSON.stringify(produceObj)}`);
-      myEmitter.on(produceObj.id, (data) => {
-        console.log(`produce: ${JSON.stringify(data)}`);
-        if (data.success) {
-          resolve(data.message);
-        }
-        reject(data.message);
-      });
-    });
-  }
-
-  async consume(queue, nums = 1) {
-    return new Promise((resolve) => {
-      const consumeObj = {
-        id: randomId(),
-        method: 'consume',
-        queue,
-        nums,
-      };
-      this.send(consumeObj);
-      console.log(`${JSON.stringify(consumeObj)}`);
-      myEmitter.on(consumeObj.id, (data) => {
-        resolve(data.messages);
-      });
-    });
-  }
-
-  send(messages) {
-    this.client.write(`${JSON.stringify(messages)}\r\n\r\n`);
-  }
-
-  end() {
-    this.client.end();
-  }
-}
-
 class Tmqp {
   constructor(config) {
-    this.config = config;
+    this.config = { host: config.host, port: config.port };
+    this.cluster = config.cluster || false;
+    if (!this.cluster) {
+      this.connect();
+    } else {
+      this.connectTurtlekeeper();
+    }
   }
 
   async connect() {
@@ -114,7 +68,14 @@ class Tmqp {
           const object = JSON.parse(reqHeader);
 
           if (object.message === 'connected') {
-            resolve(new Connection(client));
+            // this.connection = new Connection(client);
+            // const setcluster = {
+            //   id: randomId(),
+            //   method: 'setcluster',
+            //   value: true,
+            // };
+            // this.connection.send(setcluster);
+            resolve(client);
           } else if (object.method === 'consume') {
             myEmitter.emit(object.id, object);
           } else if (object.method === 'produce') {
@@ -130,6 +91,8 @@ class Tmqp {
       client.on('end', () => {
         console.log('disconnected from server');
       });
+
+      this.client = client;
     });
   }
 
@@ -166,8 +129,7 @@ class Tmqp {
           const object = JSON.parse(reqHeader);
 
           if (object.message === 'connected') {
-            this.connection = new Connection(client);
-            resolve(this.connection);
+            resolve(client);
           } else if (object.method === 'consume') {
             myEmitter.emit(object.id, object);
           } else if (object.method === 'produce') {
@@ -187,7 +149,68 @@ class Tmqp {
       client.on('end', () => {
         console.log('disconnected from server');
       });
+      this.client = client;
     });
+  }
+
+  async produce(queue, messages, option) {
+    return new Promise((resolve, reject) => {
+      const produceObj = {
+        id: randomId(),
+        method: 'produce',
+        maxLength: option?.maxLength,
+        queue,
+        messages: typeof messages === 'string' ? [messages] : [...messages],
+      };
+      this.send(produceObj);
+      // console.log(`${JSON.stringify(produceObj)}`);
+      myEmitter.once(produceObj.id, (data) => {
+        console.log(`produce: ${JSON.stringify(data)}`);
+        if (data.success) {
+          resolve(data.message);
+        }
+        reject(data.message);
+      });
+    });
+  }
+
+  async consume(queue, nums = 1) {
+    return new Promise((resolve) => {
+      const consumeObj = {
+        id: randomId(),
+        method: 'consume',
+        queue,
+        nums,
+      };
+      this.send(consumeObj);
+      // console.log(`${JSON.stringify(consumeObj)}`);
+      myEmitter.on(consumeObj.id, (data) => {
+        resolve(data.messages);
+      });
+    });
+  }
+
+  async delete(queue) {
+    return new Promise((resolve) => {
+      const deleteObj = {
+        id: randomId(),
+        method: 'deleteQueue',
+        queue,
+      };
+      this.send(deleteObj);
+      // console.log(`${JSON.stringify(consumeObj)}`);
+      myEmitter.once(deleteObj.id, (data) => {
+        resolve(data.messages);
+      });
+    });
+  }
+
+  send(messages) {
+    this.client.write(`${JSON.stringify(messages)}\r\n\r\n`);
+  }
+
+  end() {
+    this.client.end();
   }
 }
 
