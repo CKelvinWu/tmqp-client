@@ -29,6 +29,7 @@ class Tmqp {
   constructor(config) {
     this.config = { host: config.host, port: config.port };
     this.cluster = config.cluster || false;
+    this.connectionTimeout = 3000;
     if (!this.cluster) {
       this.connect();
     } else {
@@ -140,11 +141,6 @@ class Tmqp {
 
       client.on('error', () => {
         console.log('Oops! cannot connect to the server');
-        setTimeout(async () => {
-          const connection = await this.connectTurtlekeeper(this.config);
-          resolve(connection);
-          // reject(new Error('cannot connect to the server'));
-        }, 5000);
       });
       client.on('end', () => {
         console.log('disconnected from server');
@@ -164,7 +160,16 @@ class Tmqp {
       };
       this.send(produceObj);
       // console.log(`${JSON.stringify(produceObj)}`);
+      this[`Timeout${produceObj.id}`] = setTimeout(() => {
+        console.log('Oops! can not get the response from server');
+        if (!this.cluster) {
+          this.connect();
+        } else {
+          this.connectTurtlekeeper();
+        }
+      }, this.connectionTimeout);
       myEmitter.once(produceObj.id, (data) => {
+        clearTimeout(this[`Timeout${produceObj.id}`])
         console.log(`produce: ${JSON.stringify(data)}`);
         if (data.success) {
           resolve(data.message);
@@ -184,7 +189,16 @@ class Tmqp {
       };
       this.send(consumeObj);
       // console.log(`${JSON.stringify(consumeObj)}`);
+      this[`Timeout${consumeObj.id}`] = setTimeout(() => {
+        console.log('Oops! can not get the response from server');
+        if (!this.cluster) {
+          this.connect();
+        } else {
+          this.connectTurtlekeeper();
+        }
+      }, this.connectionTimeout);
       myEmitter.on(consumeObj.id, (data) => {
+        clearTimeout(this[`Timeout${consumeObj.id}`])
         resolve(data.messages);
       });
     });
