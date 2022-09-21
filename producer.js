@@ -5,7 +5,12 @@ const Tmqp = require('./tmqp');
   // const connection = await tmqp.connectTurtlekeeper();
   const queue = 'competition';
   let i = 0;
-  setInterval(async () => {
-    await tmqp.produce(queue, [i++]);
-  }, 100);
+  await tmqp.produce(queue, [i++]);
+  await tmqp.produce(queue, [i++]);
+  await tmqp.produce(queue, [i++]);
+  await tmqp.produce(queue, [i++]);
+  await tmqp.produce(queue, [i++]);
+  
+  // setInterval(async () => {
+  // }, 100);
 })();

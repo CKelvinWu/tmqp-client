@@ -1,5 +1,6 @@
 /* eslint-disable max-classes-per-file */
 const net = require('net');
+const socket = new net.Socket()
 const EventEmitter = require('node:events');
 const crypto = require('crypto');
 
@@ -29,20 +30,23 @@ class Tmqp {
   constructor(config) {
     this.config = { host: config.host, port: config.port };
     this.cluster = config.cluster || false;
-    this.connectionTimeout = 3000;
+    this.connectionTimeout = 5000;
+    this.reconnect();
+  }
+
+  reconnect() {
+    this.client?.removeAllListeners();
     if (!this.cluster) {
       this.connect();
     } else {
       this.connectTurtlekeeper();
     }
   }
-
+  
   async connect() {
-    return new Promise((resolve, reject) => {
-      const client = net.connect(this.config);
-
+    try {
+      const client = socket.connect(this.config);
       client.on('connect', () => {
-        console.log('connected to server!');
         client.on('readable', () => {
           let reqBuffer = Buffer.from('');
           let buf;
@@ -67,17 +71,7 @@ class Tmqp {
 
           if (!reqHeader) return;
           const object = JSON.parse(reqHeader);
-
-          if (object.message === 'connected') {
-            // this.connection = new Connection(client);
-            // const setcluster = {
-            //   id: randomId(),
-            //   method: 'setcluster',
-            //   value: true,
-            // };
-            // this.connection.send(setcluster);
-            resolve(client);
-          } else if (object.method === 'consume') {
+          if (object.method === 'consume') {
             myEmitter.emit(object.id, object);
           } else if (object.method === 'produce') {
             myEmitter.emit(object.id, object);
@@ -85,68 +79,69 @@ class Tmqp {
         });
       });
 
-      client.on('error', () => {
-        console.log('Oops! cannot connect to the server');
-        reject(new Error('cannot connect to the server'));
+      client.once('error', (error) => {
+        console.log(error);
+        reject(new Error(error))
       });
       client.on('end', () => {
         console.log('disconnected from server');
       });
 
       this.client = client;
-    });
+      
+    } catch (error) {
+      this.reconnect();
+    }
   }
 
   async connectTurtlekeeper() {
+    // TODO: handle turtlekeeper connection error
     const config = await getMasterIp(this.config);
-    return new Promise((resolve) => {
-      const client = net.connect(config);
+    const client = socket.connect(config);
 
-      client.on('connect', () => {
-        console.log('connected to server!');
-        client.on('readable', () => {
-          let reqBuffer = Buffer.from('');
-          let buf;
-          let reqHeader;
-          while (true) {
-            buf = client.read();
-            if (buf === null) break;
+    client.on('connect', () => {
+      console.log('connected to server!');
+      client.on('readable', () => {
+        let reqBuffer = Buffer.from('');
+        let buf;
+        let reqHeader;
+        while (true) {
+          buf = client.read();
+          if (buf === null) break;
 
-            reqBuffer = Buffer.concat([reqBuffer, buf]);
+          reqBuffer = Buffer.concat([reqBuffer, buf]);
 
-            // Indicating end of a request
-            const marker = reqBuffer.indexOf('\r\n\r\n');
-            if (marker !== -1) {
-              // Record the data after \r\n\r\n
-              const remaining = reqBuffer.slice(marker + 4);
-              reqHeader = reqBuffer.slice(0, marker).toString();
-              // Push the extra readed data back to the socket's readable stream
-              client.unshift(remaining);
-              break;
-            }
+          // Indicating end of a request
+          const marker = reqBuffer.indexOf('\r\n\r\n');
+          if (marker !== -1) {
+            // Record the data after \r\n\r\n
+            const remaining = reqBuffer.slice(marker + 4);
+            reqHeader = reqBuffer.slice(0, marker).toString();
+            // Push the extra readed data back to the socket's readable stream
+            client.unshift(remaining);
+            break;
           }
+        }
 
-          if (!reqHeader) return;
-          const object = JSON.parse(reqHeader);
+        if (!reqHeader) return;
+        const object = JSON.parse(reqHeader);
 
-          if (object.message === 'connected') {
-            resolve(client);
-          } else if (object.method === 'consume') {
-            myEmitter.emit(object.id, object);
-          } else if (object.method === 'produce') {
-            myEmitter.emit(object.id, object);
-          }
-        });
+        if (object.method === 'consume') {
+          myEmitter.emit(object.id, object);
+        } else if (object.method === 'produce') {
+          myEmitter.emit(object.id, object);
+        }
       });
-
-      client.on('error', () => {
-        console.log('Oops! cannot connect to the server');
-      });
-      client.on('end', () => {
-        console.log('disconnected from server');
-      });
-      this.client = client;
     });
+
+    client.on('error', (error) => {
+      console.log(error);
+      reject(new Error(error))
+    });
+    client.on('end', () => {
+      console.log('disconnected from server');
+    });
+    this.client = client;
   }
 
   async produce(queue, messages, option) {
@@ -161,12 +156,7 @@ class Tmqp {
       this.send(produceObj);
       // console.log(`${JSON.stringify(produceObj)}`);
       this[`Timeout${produceObj.id}`] = setTimeout(() => {
-        console.log('Oops! can not get the response from server');
-        if (!this.cluster) {
-          this.connect();
-        } else {
-          this.connectTurtlekeeper();
-        }
+        reject(new Error('Oops! Can not get the response from server'))
       }, this.connectionTimeout);
       myEmitter.once(produceObj.id, (data) => {
         clearTimeout(this[`Timeout${produceObj.id}`])
@@ -190,12 +180,7 @@ class Tmqp {
       this.send(consumeObj);
       // console.log(`${JSON.stringify(consumeObj)}`);
       this[`Timeout${consumeObj.id}`] = setTimeout(() => {
-        console.log('Oops! can not get the response from server');
-        if (!this.cluster) {
-          this.connect();
-        } else {
-          this.connectTurtlekeeper();
-        }
+        reject(new Error('Oops! Can not get the response from server'))
       }, this.connectionTimeout);
       myEmitter.on(consumeObj.id, (data) => {
         clearTimeout(this[`Timeout${consumeObj.id}`])
@@ -212,6 +197,10 @@ class Tmqp {
         queue,
       };
       this.send(deleteObj);
+
+      this[`Timeout${deleteObj.id}`] = setTimeout(() => {
+        reject(new Error('Oops! Can not get the response from server'))
+      }, this.connectionTimeout);
       // console.log(`${JSON.stringify(consumeObj)}`);
       myEmitter.once(deleteObj.id, (data) => {
         resolve(data.messages);
