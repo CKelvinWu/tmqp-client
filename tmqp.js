@@ -148,7 +148,7 @@ class Tmqp {
         id: randomId(),
         method: 'produce',
         maxLength: option?.maxLength,
-        queue,
+        queue: queue.replace(/\s/g, ''),
         messages: typeof messages === 'string' ? [messages] : [...messages],
       };
       this.send(produceObj);
@@ -172,7 +172,7 @@ class Tmqp {
       const consumeObj = {
         id: randomId(),
         method: 'consume',
-        queue,
+        queue: queue.replace(/\s/g, ''),
         nums,
       };
       this.send(consumeObj);
@@ -192,7 +192,7 @@ class Tmqp {
       const deleteObj = {
         id: randomId(),
         method: 'deleteQueue',
-        queue,
+        queue: queue.replace(/\s/g, ''),
       };
       this.send(deleteObj);
 
