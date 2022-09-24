@@ -158,7 +158,6 @@ class Tmqp {
         queue: queue.replace(/\s/g, ''),
         messages: typeof messages === 'string' ? [messages] : [...messages],
       };
-      this.send(produceObj);
       // // console.log(`${JSON.stringify(produceObj)}`);
       // this[`Timeout${produceObj.id}`] = setTimeout(() => {
       //   reject(new Error('Oops! Can not get the response from server'));
@@ -171,6 +170,7 @@ class Tmqp {
         }
         reject(data.message);
       });
+      this.send(produceObj);
     });
   }
 
@@ -182,7 +182,6 @@ class Tmqp {
         queue: queue.replace(/\s/g, ''),
         nums,
       };
-      this.send(consumeObj);
       // console.log(`${JSON.stringify(consumeObj)}`);
       // this[`Timeout${consumeObj.id}`] = setTimeout(() => {
       //   reject(new Error('Oops! Can not get the response from server'));
@@ -191,6 +190,7 @@ class Tmqp {
         // clearTimeout(this[`Timeout${consumeObj.id}`]);
         resolve(data.messages);
       });
+      this.send(consumeObj);
     });
   }
 
@@ -201,7 +201,6 @@ class Tmqp {
         method: 'deleteQueue',
         queue: queue.replace(/\s/g, ''),
       };
-      this.send(deleteObj);
 
       this[`Timeout${deleteObj.id}`] = setTimeout(() => {
         reject(new Error('Oops! Can not get the response from server'));
@@ -210,6 +209,7 @@ class Tmqp {
         clearTimeout(this[`Timeout${deleteObj.id}`]);
         resolve(data.messages);
       });
+      this.send(deleteObj);
     });
   }
 
