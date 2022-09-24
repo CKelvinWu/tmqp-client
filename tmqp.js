@@ -12,6 +12,9 @@ const randomId = () => crypto.randomBytes(8).toString('hex');
 const myEmitter = new MyEmitter();
 
 function stringToHostAndPort(address) {
+  if (!address) {
+    return null;
+  }
   return { host: address.split(':')[0], port: address.split(':')[1] };
 }
 
@@ -20,7 +23,8 @@ async function getMasterIp(turtlekeeperConfig) {
     http.get(turtlekeeperConfig, (res) => {
       res.on('data', (data) => {
         const ip = data.toString();
-        const config = stringToHostAndPort(ip);
+        const { master } = JSON.parse(ip);
+        const config = stringToHostAndPort(master);
         resolve(config);
       });
     }).end();
@@ -97,6 +101,9 @@ class Tmqp {
   async connectTurtlekeeper() {
     // TODO: handle turtlekeeper connection error
     const config = await getMasterIp(this.config);
+    if (!config) {
+      return;
+    }
     const client = socket.connect(config);
 
     client.on('connect', () => {
