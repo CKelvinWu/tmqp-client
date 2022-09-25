@@ -36,11 +36,13 @@ class Tmqp {
     this.config = { host: config.host, port: config.port };
     this.cluster = config.cluster || false;
     this.connectionTimeout = 5000;
+    this.pending = () => socket.pending;
     this.reconnect();
   }
 
   reconnect() {
     this.client?.removeAllListeners();
+    this.client?.end();
     if (!this.cluster) {
       this.connect();
     } else {
@@ -104,6 +106,7 @@ class Tmqp {
     if (!config) {
       return;
     }
+    socket.setKeepAlive(true, 5000);
     const client = socket.connect(config);
 
     client.on('connect', () => {
@@ -158,38 +161,57 @@ class Tmqp {
         queue: queue.replace(/\s/g, ''),
         messages: typeof messages === 'string' ? [messages] : [...messages],
       };
-      // // console.log(`${JSON.stringify(produceObj)}`);
-      // this[`Timeout${produceObj.id}`] = setTimeout(() => {
-      //   reject(new Error('Oops! Can not get the response from server'));
-      // }, this.connectionTimeout);
-      myEmitter.once(produceObj.id, (data) => {
-        // clearTimeout(this[`Timeout${produceObj.id}`]);
+      // console.log(`${JSON.stringify(produceObj)}`);
+      this[`Timeout${produceObj.id}`] = setTimeout(() => {
+        this.reconnect();
+        // resolve(this.produce(queue, messages, option));
+        console.log('Oops! Can not get the response from server');
+        reject(new Error('Oops! Can not get the response from server'));
+      }, this.connectionTimeout);
+      const produceHandler = (data) => {
+        clearTimeout(this[`Timeout${produceObj.id}`]);
+        myEmitter.removeListener(produceObj.id, produceHandler);
         console.log(`produce: ${JSON.stringify(data)}`);
         if (data.success) {
           resolve(data.message);
         }
         reject(data.message);
-      });
+      };
+      myEmitter.once(produceObj.id, produceHandler);
       this.send(produceObj);
     });
   }
 
   async consume(queue, nums = 1) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const consumeObj = {
         id: randomId(),
         method: 'consume',
         queue: queue.replace(/\s/g, ''),
         nums,
       };
-      // console.log(`${JSON.stringify(consumeObj)}`);
-      // this[`Timeout${consumeObj.id}`] = setTimeout(() => {
-      //   reject(new Error('Oops! Can not get the response from server'));
-      // }, this.connectionTimeout);
-      myEmitter.once(consumeObj.id, (data) => {
-        // clearTimeout(this[`Timeout${consumeObj.id}`]);
-        resolve(data.messages);
-      });
+      console.log(`${JSON.stringify(consumeObj)}`);
+
+      const consumeHandler = (data) => {
+        clearTimeout(this[`Timeout${consumeObj.id}`]);
+        console.log(`consume: ${JSON.stringify(data)}`);
+        if (!data.success) {
+          myEmitter.removeListener(consumeObj.id, consumeHandler);
+          reject(data.message);
+        }
+        if (!data.pending) {
+          myEmitter.removeListener(consumeObj.id, consumeHandler);
+          resolve(data.messages);
+        }
+      };
+
+      this[`Timeout${consumeObj.id}`] = setTimeout(() => {
+        this.reconnect();
+        // resolve(this.consume(queue, nums));
+        console.log('Oops! Can not get the response from server');
+        reject(new Error('Oops! Can not get the response from server'));
+      }, this.connectionTimeout);
+      myEmitter.on(consumeObj.id, consumeHandler);
       this.send(consumeObj);
     });
   }
@@ -201,14 +223,23 @@ class Tmqp {
         method: 'deleteQueue',
         queue: queue.replace(/\s/g, ''),
       };
+      const deleteHandler = (data) => {
+        clearTimeout(this[`Timeout${deleteObj.id}`]);
+        myEmitter.removeListener(deleteObj.id, deleteHandler);
+        console.log(`delete: ${JSON.stringify(data)}`);
+        if (data.success) {
+          resolve(data.message);
+        }
+        reject(data.message);
+      };
 
       this[`Timeout${deleteObj.id}`] = setTimeout(() => {
+        this.reconnect();
+        // resolve(this.delete(queue));
+        console.log('Oops! Can not get the response from server');
         reject(new Error('Oops! Can not get the response from server'));
       }, this.connectionTimeout);
-      myEmitter.once(deleteObj.id, (data) => {
-        clearTimeout(this[`Timeout${deleteObj.id}`]);
-        resolve(data.messages);
-      });
+      myEmitter.once(deleteObj.id, deleteHandler);
       this.send(deleteObj);
     });
   }
