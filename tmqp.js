@@ -66,6 +66,7 @@ class Tmqp {
 
         client.on('readable', () => {
           const buf = client.read();
+          if (!buf) return;
           reqBuffer = Buffer.concat([reqBuffer, buf]);
 
           while (true) {
