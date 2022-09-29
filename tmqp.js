@@ -8,6 +8,8 @@ const crypto = require('crypto');
 class MyEmitter extends EventEmitter {}
 const http = require('http');
 
+// const Buffer = require('buffer');
+
 const randomId = () => crypto.randomBytes(8).toString('hex');
 const myEmitter = new MyEmitter();
 
@@ -43,45 +45,44 @@ class Tmqp {
   reconnect() {
     this.client?.removeAllListeners();
     this.client?.end();
-    if (!this.cluster) {
-      this.connect();
-    } else {
-      this.connectTurtlekeeper();
-    }
+    this.connect();
   }
 
   async connect() {
     try {
-      const client = socket.connect(this.config);
+      socket.setKeepAlive(true, 5000);
+      let client;
+      if (this.cluster) {
+        const config = await getMasterIp(this.config);
+        if (!config) return;
+        client = socket.connect(config);
+      } else {
+        client = socket.connect(this.config);
+      }
+
       client.on('connect', () => {
+        console.log('connected to server!');
+        let reqBuffer = Buffer.from('');
+
         client.on('readable', () => {
-          let reqBuffer = Buffer.from('');
-          let buf;
-          let reqHeader;
+          const buf = client.read();
+          reqBuffer = Buffer.concat([reqBuffer, buf]);
+
           while (true) {
-            buf = client.read();
-            if (buf === null) break;
-
-            reqBuffer = Buffer.concat([reqBuffer, buf]);
-
+            if (reqBuffer === null) break;
             // Indicating end of a request
             const marker = reqBuffer.indexOf('\r\n\r\n');
-            if (marker !== -1) {
-              // Record the data after \r\n\r\n
-              const remaining = reqBuffer.slice(marker + 4);
-              reqHeader = reqBuffer.slice(0, marker).toString();
-              // Push the extra readed data back to the socket's readable stream
-              client.unshift(remaining);
-              break;
-            }
-          }
+            // Find no seperator
+            if (marker === -1) break;
+            // Record the data after \r\n\r\n
+            const reqHeader = reqBuffer.slice(0, marker).toString();
+            // Keep hte extra readed data in the reqBuffer
+            reqBuffer = reqBuffer.slice(marker + 4);
 
-          if (!reqHeader) return;
-          const object = JSON.parse(reqHeader);
-          if (object.method === 'consume') {
-            myEmitter.emit(object.id, object);
-          } else if (object.method === 'produce') {
-            myEmitter.emit(object.id, object);
+            const object = JSON.parse(reqHeader);
+            if (object.method === 'consume' || object.method === 'produce' || object.method === 'delete') {
+              myEmitter.emit(object.id, object);
+            }
           }
         });
       });
@@ -96,60 +97,9 @@ class Tmqp {
 
       this.client = client;
     } catch (error) {
+      console.log(error);
       this.reconnect();
     }
-  }
-
-  async connectTurtlekeeper() {
-    // TODO: handle turtlekeeper connection error
-    const config = await getMasterIp(this.config);
-    if (!config) {
-      return;
-    }
-    socket.setKeepAlive(true, 5000);
-    const client = socket.connect(config);
-
-    client.on('connect', () => {
-      console.log('connected to server!');
-      client.on('readable', () => {
-        let reqBuffer = Buffer.from('');
-        let buf;
-        let reqHeader;
-        while (true) {
-          buf = client.read();
-          if (buf === null) break;
-
-          reqBuffer = Buffer.concat([reqBuffer, buf]);
-
-          // Indicating end of a request
-          const marker = reqBuffer.indexOf('\r\n\r\n');
-          if (marker !== -1) {
-            // Record the data after \r\n\r\n
-            const remaining = reqBuffer.slice(marker + 4);
-            reqHeader = reqBuffer.slice(0, marker).toString();
-            // Push the extra readed data back to the socket's readable stream
-            client.unshift(remaining);
-            break;
-          }
-        }
-
-        if (!reqHeader) return;
-        const object = JSON.parse(reqHeader);
-
-        if (object.method === 'consume' || object.method === 'produce' || object.method === 'delete') {
-          myEmitter.emit(object.id, object);
-        }
-      });
-    });
-
-    client.on('error', (error) => {
-      console.log(error);
-      return new Error(error);
-    });
-    client.on('end', () => {
-      console.log('disconnected from server');
-    });
-    this.client = client;
   }
 
   async produce(queue, messages, option) {
@@ -166,12 +116,13 @@ class Tmqp {
         this.reconnect();
         // resolve(this.produce(queue, messages, option));
         console.log('Oops! Can not get the response from server');
+        console.log(`produce id: ${JSON.stringify(produceObj)}`);
         reject(new Error('Oops! Can not get the response from server'));
       }, this.connectionTimeout);
       const produceHandler = (data) => {
         clearTimeout(this[`Timeout${produceObj.id}`]);
         myEmitter.removeListener(produceObj.id, produceHandler);
-        console.log(`produce: ${JSON.stringify(data)}`);
+        // console.log(`produce: ${JSON.stringify(data)}`);
         if (data.success) {
           resolve(data.message);
         }
@@ -226,7 +177,7 @@ class Tmqp {
       const deleteHandler = (data) => {
         clearTimeout(this[`Timeout${deleteObj.id}`]);
         myEmitter.removeListener(deleteObj.id, deleteHandler);
-        console.log(`delete: ${JSON.stringify(data)}`);
+        // console.log(`delete: ${JSON.stringify(data)}`);
         if (data.success) {
           resolve(data.message);
         }
@@ -237,6 +188,7 @@ class Tmqp {
         this.reconnect();
         // resolve(this.delete(queue));
         console.log('Oops! Can not get the response from server');
+        console.log(`produce id: ${JSON.stringify(deleteObj)}`);
         reject(new Error('Oops! Can not get the response from server'));
       }, this.connectionTimeout);
       myEmitter.once(deleteObj.id, deleteHandler);
