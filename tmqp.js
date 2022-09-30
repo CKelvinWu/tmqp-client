@@ -64,8 +64,8 @@ class Tmqp {
         console.log('connected to server!');
         let reqBuffer = Buffer.from('');
 
-        client.on('readable', () => {
-          const buf = client.read();
+        client.on('data', (buf) => {
+          // const buf = client.read();
           if (!buf) return;
           reqBuffer = Buffer.concat([reqBuffer, buf]);
 
@@ -198,7 +198,7 @@ class Tmqp {
   }
 
   send(messages) {
-    this.client.write(`${JSON.stringify(messages)}\r\n\r\n`);
+    this.client?.write(`${JSON.stringify(messages)}\r\n\r\n`);
   }
 
   end() {
