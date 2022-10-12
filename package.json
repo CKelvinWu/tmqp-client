@@ -8,15 +8,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CKelvinWu/tmqp.git"
+    "url": "git+https://github.com/CKelvinWu/tmqp-client.git"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/CKelvinWu/tmqp/issues"
+    "url": "https://github.com/CKelvinWu/tmqp-client/issues"
   },
-  "homepage": "https://github.com/CKelvinWu/tmqp#readme",
+  "homepage": "https://github.com/CKelvinWu/tmqp-client#readme",
   "devDependencies": {
     "eslint": "^8.23.0",
     "eslint-config-airbnb-base": "^15.0.0",
