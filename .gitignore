@@ -1,2 +1,5 @@
 node_modules/
 .env
+consumer.js
+producer.js
+test/
