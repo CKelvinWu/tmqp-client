@@ -18,14 +18,18 @@ function stringToHostAndPort(address) {
   return { host: address.split(':')[0], port: address.split(':')[1] };
 }
 
-async function getMasterIp(turtlekeeperConfig) {
+async function getMasterIp(turtleFinderConfig) {
   return new Promise((resolve) => {
-    http.get(turtlekeeperConfig, (res) => {
+    http.get(turtleFinderConfig, (res) => {
       res.on('data', (data) => {
         const ip = data.toString();
-        const { master } = JSON.parse(ip);
-        const config = stringToHostAndPort(master);
-        resolve(config);
+        try {
+          const { master } = JSON.parse(ip);
+          const config = stringToHostAndPort(master);
+          resolve(config);
+        } catch (error) {
+          console.log(error);
+        }
       });
     }).end();
   });
