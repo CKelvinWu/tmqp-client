@@ -36,12 +36,27 @@ async function getMasterIp(turtleFinderConfig) {
 }
 
 class Tmqp {
+  #connectionTimeout;
+
   constructor(config) {
     this.config = { host: config.host, port: config.port };
     this.cluster = config.cluster || false;
-    this.connectionTimeout = config.connectionTimeout || 10000;
+    if (config.connectionTimeout) {
+      this.connectionTimeout = config.connectionTimeout;
+    }
     this.pending = () => socket.pending;
     this.connect();
+  }
+
+  set connectionTimeout(timeout) {
+    if (isNaN(timeout)) {
+      throw new Error('connectionTimeout should be a number');
+    }
+    this.#connectionTimeout = timeout;
+  }
+
+  get connectionTimeout() {
+    return this.#connectionTimeout;
   }
 
   reconnect() {
@@ -115,14 +130,16 @@ class Tmqp {
         method: 'produce',
         maxLength: option?.maxLength,
         queue: queue.replace(/\s/g, ''),
-        messages: typeof messages === 'string' ? [messages] : [...messages],
+        messages: (typeof messages === 'string' || typeof messages === 'number') ? [messages] : [...messages],
       };
       // console.log(`${JSON.stringify(produceObj)}`);
-      // this[`Timeout${produceObj.id}`] = setTimeout(() => {
-      //   this.reconnect();
-      //   console.log('Oops! Can not get the response from server');
-      //   reject(new Error('Oops! Can not get the response from server'));
-      // }, this.connectionTimeout);
+      if (this.connectionTimeout) {
+        this[`Timeout${produceObj.id}`] = setTimeout(() => {
+          this.reconnect();
+          console.log('Oops! Can not get the response from server');
+          reject(new Error('Oops! Can not get the response from server'));
+        }, this.connectionTimeout);
+      }
       const produceHandler = (data) => {
         clearTimeout(this[`Timeout${produceObj.id}`]);
         myEmitter.removeListener(produceObj.id, produceHandler);
@@ -159,11 +176,13 @@ class Tmqp {
       };
 
       // console.log(`${JSON.stringify(consumeObj)}`);
-      // this[`Timeout${consumeObj.id}`] = setTimeout(() => {
-      //   this.reconnect();
-      //   console.log('Oops! Can not get the response from server');
-      //   reject(new Error('Oops! Can not get the response from server'));
-      // }, this.connectionTimeout);
+      if (this.connectionTimeout) {
+        this[`Timeout${consumeObj.id}`] = setTimeout(() => {
+          this.reconnect();
+          console.log('Oops! Can not get the response from server');
+          reject(new Error('Oops! Can not get the response from server'));
+        }, this.connectionTimeout);
+      }
       myEmitter.on(consumeObj.id, consumeHandler);
       this.send(consumeObj);
     });
@@ -184,13 +203,15 @@ class Tmqp {
         }
         reject(data.message);
       };
-
       // console.log(`delete: ${JSON.stringify(data)}`);
-      // this[`Timeout${deleteObj.id}`] = setTimeout(() => {
-      //   this.reconnect();
-      //   console.log('Oops! Can not get the response from server');
-      //   reject(new Error('Oops! Can not get the response from server'));
-      // }, this.connectionTimeout);
+      if (this.connectionTimeout) {
+        this[`Timeout${deleteObj.id}`] = setTimeout(() => {
+          this.reconnect();
+          console.log('Oops! Can not get the response from server');
+          reject(new Error('Oops! Can not get the response from server'));
+        }, this.connectionTimeout);
+      }
+
       myEmitter.once(deleteObj.id, deleteHandler);
       this.send(deleteObj);
     });
