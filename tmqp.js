@@ -164,7 +164,7 @@ class Tmqp {
 
       const consumeHandler = (data) => {
         clearTimeout(this[`Timeout${consumeObj.id}`]);
-        console.log(`consume: ${JSON.stringify(data)}`);
+        // console.log(`consume: ${JSON.stringify(data)}`);
         if (!data.success) {
           myEmitter.removeListener(consumeObj.id, consumeHandler);
           reject(data.message);
